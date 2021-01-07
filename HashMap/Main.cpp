@@ -1,9 +1,9 @@
-#include "FileStrHashMap_1.hpp"
+#include "FileStrHashMap.hpp"
 #include <sys/time.h>
 #include <string.h>
 
 
-int total = 1000000;
+int total = 100000;
 
 int add( LYW_CODE::FileHashMap & m_map)
 {
@@ -78,9 +78,9 @@ int main(int argc, char ** argv)
     int t = 0;
     t = add (m_map);
     printf("add TPS[%d]\n", t);
-    t = find (m_map);
-    printf("add TPS[%d]\n", t);
-    t = del (m_map);
-    printf("add TPS[%d]\n", t);
+    //t = find (m_map);
+    //printf("add TPS[%d]\n", t);
+    //t = del (m_map);
+    //printf("add TPS[%d]\n", t);
 
 }

@@ -10,7 +10,7 @@ int main(int argc, char ** argv)
         return 0;
     }
     char buf2[100] = {0};
-    unsigned long handle = 0;
+    unsigned long long handle = 0;
     int tag = atoi(argv[1]);
     int size = 0; 
     switch(tag) 

@@ -34,7 +34,7 @@ namespace LYW_CODE
              * @return  -1 failed 
              *          the resulting offset location as measured in bytes from the beginning of the file 
              */
-            virtual long lseek(unsigned long offset, int whence) = 0;
+            virtual long long lseek(unsigned long long offset, int whence) = 0;
 
 
             /**
@@ -169,7 +169,7 @@ namespace LYW_CODE
              * @return  -1 failed 
              *          the resulting offset location as measured in bytes from the beginning of the file 
              */
-            long lseek(unsigned long offset, int whence)
+            long long lseek(unsigned long long offset, int whence)
             {
                 if (m_handle > 0)
                 {

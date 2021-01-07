@@ -2,7 +2,7 @@
 #include <map>
 #include <string.h>
 
-#define FileStorageHandle unsigned long
+#define FileStorageHandle unsigned long long
 #define FileStorageCheckInfo "**LYW_CODE**"
 
 namespace LYW_CODE
@@ -20,7 +20,7 @@ namespace LYW_CODE
 
     typedef struct _FixedHead
     {
-        unsigned long fileEndIndex;
+        unsigned long long fileEndIndex;
     } FixedHead_t;
     
     /*data block include two part first : index info second : data*/
@@ -346,9 +346,9 @@ namespace LYW_CODE
             StorageBlock_t storageBlock;
             int ret = 0;
             std::map<FileStorageHandle,StorageBlock_t> :: iterator it;
-            unsigned int beginIndex;
-            unsigned int endIndex;
-            unsigned int tmpIndex;
+            unsigned long long beginIndex;
+            unsigned long long endIndex;
+            unsigned long long tmpIndex;
 
             if (!IsInit())
             {
@@ -480,7 +480,7 @@ namespace LYW_CODE
          * @return  > 0             write data len
          *          < 0             error code
          */
-        int WriteToFile(unsigned long beginIndex, void * data, size_t lenOfData) 
+        int WriteToFile(unsigned long long beginIndex, void * data, size_t lenOfData) 
         {
             if (m_Storage->lseek(beginIndex, SEEK_SET) < 0)
             {
@@ -511,7 +511,7 @@ namespace LYW_CODE
             VerifyInfo_t verifyInfo;
             memset(&verifyInfo, 0x00, sizeof(VerifyInfo_t));
 
-            unsigned long index = 0;
+            unsigned long long index = 0;
 
             StorageBlock_t storageBlock;
 
