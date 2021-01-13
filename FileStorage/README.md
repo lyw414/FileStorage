@@ -26,7 +26,7 @@
 
 | Verify Info | File Info | Page | Page | .....
                          /         \
-                     / block structure \
+                     / Page structure \
 | Block Index | Block | Block | Block | Block | .... 
 
 ### 文件格式说明
