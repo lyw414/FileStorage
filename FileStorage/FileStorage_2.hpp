@@ -45,7 +45,6 @@ namespace LYW_CODE
             FILE_STORAGE_UNSIGNED_INT blockSize;
         } FileInfo_t;
 
-
         typedef struct _BlockIndexFieldHead
         {
             FILE_STORAGE_UNSIGNED_INT maxSerialBlockSize;
@@ -113,6 +112,19 @@ namespace LYW_CODE
             return handle;
         }
 
+        /**
+        * @brief                Free buffer
+        *
+        * @param handle         handle
+        *
+        */
+        void Free(const FileStorageHandle & handle)
+        {
+            //FILE_STORAGE_UNSIGNED_INT FreePageNum = 0;
+            //if (handle.size % m_FileInfo.pageDataSize == 0)
+
+        }
+
     private:
 
         /**
@@ -129,9 +141,9 @@ namespace LYW_CODE
 
             FILE_STORAGE_UNSIGNED_INT needPageNum = 0;
 
-            FILE_STORAGE_UNSIGNED_INT freePageNum = 0;
-
             FILE_STORAGE_UNSIGNED_INT freePageIndex = 0;
+
+            FILE_STORAGE_UNSIGNED_INT minFreeSize = 0;
 
             FILE_STORAGE_UNSIGNED_INT freeBlockBeginIndexInPage = 0;
             QuictAllocateInfo_t quickAllocateInfo;
@@ -163,26 +175,28 @@ namespace LYW_CODE
                 /*find enough block*/
                 if (it->first >= handle.size && it->second.size() > 0)
                 {
+                    minFreeSize = it->first;
                     it1 = it->second.begin();
                     freePageIndex = it1->first;
                     memcpy(&quickAllocateInfo, &it1->second, sizeof(QuickAllocateInfo_t)):
-                    //it->second.erase(freePageIndex);
                     break;
                 }
             }
 
-            /*not found reallocate*/
+            /*not found , allocate*/
             if (it == m_quickAllocate.end())
             {
                 alloacePages(needPageNum, freePageIndex, quickAllocateInfo)
+                minFreeSize = CalculateMinAllocateSize(quickAllocateInfo.maxSerialBlockSize);
             }
 
+            handle.beginIndex = sizeof(VerifyInfo_t) + sizeof(FileInfo_t) + freePageIndex * m_FileInfo.pageSize + quickAllocateInfo.freeBlockBeginIndexInPage;
 
-            /*XXXXXXXXXXXXXXXXXXXXXXXXXXXX need write*/
-            
-            return false;
+            /*update index field*/
+            updataIndexFieldInFileForAllocate(freePageIndex, quickAllocateInfo, handle.size);
+
+            return true;
         }
-
 
 
         /**
@@ -196,6 +210,226 @@ namespace LYW_CODE
         bool normalAllocate(const FileStorageHandle & handle, FILE_STORAGE_UNSIGNED_INT size)
         {
 
+            FILE_STORAGE_UNSIGNED_INT needPageNum = 0;
+
+            FILE_STORAGE_UNSIGNED_INT freePageIndex = 0;
+
+            FILE_STORAGE_UNSIGNED_INT serialFreePageNum = 0;
+
+            FILE_STORAGE_UNSIGNED_INT freeSize = 0;
+
+            FILE_STORAGE_UNSIGNED_INT freeBlockBeginIndexInPage = 0;
+
+            FILE_STORAGE_UNSIGNED_LONG index = 0;
+
+            QuictAllocateInfo_t quickAllocateInfo;
+
+            memset(&quickAllocateInfo, 0x00, sizeof(QuictAllocateInfo_t));
+
+            BlockIndexFieldHead_t * blockIndexFieldHead =(BlockIndexFieldHead_t *)m_BlockIndex;
+
+            /*calculate allocate size*/
+            handle.size = calculateAllocateSizeBySize(size);
+
+            /*calculate need page*/
+            needPageNum = handle.size / m_FileInfo.pageDataSize;
+            
+            if (handle.size % m_FileInfo.pageDataSize != 0)
+            {
+                needPageNum++;
+            }
+
+            /*find free block in file*/
+            index = sizeof(VerifyInfo_t) + sizeof(FileInfo_t);
+            for (FILE_STORAGE_UNSIGNED_INT iLoop = 0; iLoop < m_FileInfo.pageNum; iLoop++)
+            {
+                readFromFile(index, blockIndexFieldHead, sizeof(BlockIndexFieldHead_t));
+                if (blockIndexFieldHead->maxSerialBlockSize == m_FileInfo.pageDataSize) 
+                {
+                    serialFreePageNum++;
+                    freeSize = m_FileInfo.pageDataSize * serialFreePageNum;
+                }
+                else if (blockIndexFieldHead->maxSerialBlockSize == 0) 
+                {
+                    serialFreePageNum = 0;
+                    continue;
+                }
+                else
+                {
+                    serialFreePageNum = 0;
+                    freeSize = m_FileInfo.pageDataSize;
+                }
+
+                if (handle.size <= freeSize)
+                {
+                    if (needPageNum > 1) 
+                    {
+                        freePageIndex = iLoop + 1 - serialFreePageNum;
+                        quickAllocateInfo.freeBlockBeginIndexInPage = m_FileInfo.blockIndexFieldSize;
+                        quickAllocateInfo.freeBlockSize = freeSize;
+                    }
+                    else
+                    {
+                        freePageIndex = iLoop;
+                        quickAllocateInfo.freeBlockBeginIndexInPage = blockIndexFieldHead->maxSerialBlockIndex;
+                        quickAllocateInfo.freeBlockSize = blockIndexFieldHead->maxSerialBlockSize;
+                    }
+                    
+                }
+
+            }
+
+            /*not found , allocate*/
+            if (quickAllocateInfo.freeBlockSize == 0)  
+            {
+                alloacePages(needPageNum, freePageIndex, quickAllocateInfo)
+            }
+            
+            handle.beginIndex = sizeof(VerifyInfo_t) + sizeof(FileInfo_t) + freePageIndex * m_FileInfo.pageSize + quickAllocateInfo.freeBlockBeginIndexInPage;
+
+            /*update index field*/
+            updataIndexFieldInFileForAllocate(freePageIndex, quickAllocateInfo, handle.size);
+
+            return true;
+
+        }
+
+        /**
+        * @brief                    update index Field
+        *
+        * @param pageIndex          pageIndex
+        * @param quickAllocateInfo  Allocate info
+        * @param size               need size
+        *
+        * @return   true            success
+        *           false           failed
+        */
+        bool updataIndexFieldInFileForAllocate(FILE_STORAGE_UNSIGNED_INT pageIndex, QuickAllocateInfo_t quickAllocateInfo, FILE_STORAGE_UNSIGNED_INT size)
+        {
+            FILE_STORAGE_UNSIGNED_LONG index = 0;
+
+            FILE_STORAGE_UNSIGNED_INT allocatePageNum = 0;
+
+            FILE_STORAGE_UNSIGNED_INT needPageNum;
+
+            FILE_STORAGE_UNSIGNED_INT minFreeSize = 0;
+
+            FILE_STORAGE_UNSIGNED_INT oldMinFreeSize = 0;
+
+            QuickAllocateInfo_t tmpQuickAllocateInfo;
+
+            BlockIndexFieldHead_t * blockIndexFieldHead =(BlockIndexFieldHead_t *)m_BlockIndex;
+
+            index = sizeof(VerifyInfo_t) + sizeof(FileInfo_t) + pageIndex * m_FileInfo.pageSize;
+
+            /*allocate page num*/
+            allocatePageNum = quickAllocateInfo.freeBlockSize / m_FileInfo.pageDataSize;
+            if (quickAllocateInfo.freeBlockSize % m_FileInfo.pageDataSize != 0)
+            {
+                allocatePageNum++;
+            }
+
+            /*need page num*/
+            needPageNum = size / m_FileInfo.pageDataSize;
+            if (size % m_FileInfo.pageDataSize != 0)
+            {
+                needPageNum++;
+            }
+
+            if (allocatePageNum == 1)
+            {
+                /*read index field from file*/
+                readFromFile(index, m_BlockIndex, m_FileInfo.blockIndexFieldSize);
+                oldMinFreeSize = CalculateMinAllocateSize(blockIndexFieldHead->maxSerialBlockSize);
+
+                /*Generate index field*/
+                bitSet((unsigned char *)m_BlockIndex, sizeof(BlockIndexFieldHead_t) * 8  + quickAllocateInfo.freeBlockBeginIndexInPage/m_FileInfo.blockSize, size/m_FileInfo.blockSize, 1);
+
+                /*Generate Index head*/
+                generateIndexHead((FILE_STORAGE_UNSIGNED_CHAR *)m_BlockIndex, m_FileInfo.blockIndexFieldSize);
+
+                /*write to file*/
+                writeToFile(index, m_BlockIndex, m_FileInfo.blockIndexFieldSize);
+
+                /*update quick allocate*/
+                if (define FILE_STORAGE_IS_USE_CACHE != 1)
+                {
+                    return;
+                }
+                
+                /*Generate quick allocate cache*/
+                tmpQuickAllocateInfo.freeBlockSize = blockIndexFieldHead->maxSerialBlockSize;
+                tmpQuickAllocateInfo.freeBlockBeginIndexInPage = blockIndexFieldHead->maxSerialBlockIndex;
+
+                minFreeSize = CalculateMinAllocateSize(blockIndexFieldHead->maxSerialBlockSize);
+minFreeSize 
+                if (minFreeSize != oldMinFreeSize)
+                {
+                    /*erase old info*/
+                    m_quickAllocate[oldMinFreeSize].erase(pageIndex);
+                }
+
+                m_quickAllocate[minFreeSize][pageIndex] = tmpQuickAllocateInfo;
+
+            }
+            else
+            {
+                /*Set Occupy, upate to file*/
+                memset(blockIndexFieldHead, 0xFF, m_FileInfo.blockIndexFieldSize);
+
+                blockIndexFieldHead->maxSerialBlockIndex = m_FileInfo.pageSize;
+                blockIndexFieldHead->maxSerialBlockSize = 0;
+
+                for (int iLoop = 0; iLoop < needPageNum - 1; iLoop++)
+                {
+                    writeToFile(index, m_BlockIndex, m_FileInfo.blockIndexFieldSize) 
+                    index += m_FileInfo.pageSize;
+                }
+
+                /*last page need set*/
+                /*Generate index field*/
+                bitSet((unsigned char *)m_BlockIndex, sizeof(BlockIndexFieldHead_t) * 8  + quickAllocateInfo.freeBlockBeginIndexInPage/m_FileInfo.blockSize, (size % m_FileInfo.pageDataSize) /m_FileInfo.blockSize, 1);
+
+                /*Generate Index head*/
+                generateIndexHead((FILE_STORAGE_UNSIGNED_CHAR *)m_BlockIndex, m_FileInfo.blockIndexFieldSize);
+
+                /*write to file*/
+                writeToFile(index, m_BlockIndex, m_FileInfo.blockIndexFieldSize);
+
+                /*update quick allocate*/
+                if (FILE_STORAGE_IS_USE_CACHE != 1)
+                {
+                    return;
+                }
+                
+                /*Generate quick allocate cache*/
+                tmpQuickAllocateInfo.freeBlockSize = blockIndexFieldHead->maxSerialBlockSize;
+                tmpQuickAllocateInfo.freeBlockBeginIndexInPage = blockIndexFieldHead->maxSerialBlockIndex;
+
+                minFreeSize = CalculateMinAllocateSize(blockIndexFieldHead->maxSerialBlockSize);
+
+                m_quickAllocate[minFreeSize][pageIndex + needPageNum - 1] = tmpQuickAllocateInfo;
+
+                /*left page need set*/
+                if (allocatePageNum > needPageNum) 
+                {
+                    tmpQuickAllocateInfo.freeBlockSize = n_FileInfo.pageDataSize * (allocatePageNum - needPageNum);
+                    tmpQuickAllocateInfo.freeBlockBeginIndexInPage = m_FileInfo.blockIndexFieldSize;
+
+                     minFreeSize = CalculateMinAllocateSize(tmpQuickAllocateInfo.freeBlockSize);
+                    m_quickAllocate[minFreeSize][pageIndex + needPageNum] = tmpQuickAllocateInfo;
+                }
+
+                /*erase old allocate info*/
+                minFreeSize = CalculateMinAllocateSize(quickAllocateInfo.freeBlockSize);
+                m_quickAllocate[minFreeSize].erase(pageIndex);
+            }
+
+            return true;
+        }
+
+        bool updataIndexFieldInFileForFree(UpdateIndexFieldTag_t tag, FILE_STORAGE_UNSIGNED_INT pageIndex,  const QuickAllocateInfo_t & quickAllocateInfo)
+        {
         }
     
         /**
@@ -550,6 +784,146 @@ namespace LYW_CODE
             }
 
             return lenOfData;
+        }
+
+        /**
+        * @brief                set buffer as bit value
+        *
+        * @param buf            buffer 
+        * @param beginIndex     bit beginIndex
+        * @param bitNum         length of bit
+        * @param setValue       0 or 1
+        */
+        void bitSet(FILE_STORAGE_UNSIGNED_CHAR * buf, FILE_STORAGE_UNSIGNED_INT beginIndex, FILE_STORAGE_UNSIGNED_INT bitNum, FILE_STORAGE_UNSIGNED_INT setValue)
+        {
+            FILE_STORAGE_UNSIGNED_INT beginCharIndex = 0;
+            FILE_STORAGE_UNSIGNED_INT beginCharBitIndex = 0;
+            FILE_STORAGE_UNSIGNED_INT endCharIndex = 0;
+            FILE_STORAGE_UNSIGNED_INT endCharBitIndex = 0;
+
+            FILE_STORAGE_UNSIGNED_CHAR ch;
+            FILE_STORAGE_UNSIGNED_CHAR tmp;
+
+
+            /*begin char*/
+            beginCharIndex = beginIndex / 8;
+            beginCharBitIndex = beginIndex % 8;
+
+            /*end char*/
+            endCharIndex = (beginIndex +  bitNum) / 8;
+            endCharBitIndex = (beginIndex + bitNum) % 8;
+
+            /*only one char*/
+            if (beginCharIndex == endCharIndex)
+            {
+                tmp = 0xFF;
+                switch(setValue == 1)
+                {
+                case 0:
+                    tmp = tmp >> beginCharBitIndex;
+                    tmp = tmp << (8 - endCharBitIndex);
+                    tmp = ~tmp;
+                    buf[beginCharIndex] &= tmp;
+                    break;
+                case 1:
+                default:
+                    tmp = tmp >> beginCharBitIndex;
+                    tmp = tmp << (8 - endCharBitIndex);
+                    buf[beginCharIndex] |= tmp;
+                    break;
+                }
+            }
+            else
+            {
+                switch(setValue == 1)
+                {
+                case 0:
+                    /*begin char*/
+                    tmp = 0xFF;
+                    buf[beginCharIndex] &= (tmp << (8 - beginCharBitIndex));
+
+                    /*end char*/
+                    buf[endCharIndex] &= (tmp >> endCharBitIndex);
+
+                    /*other char*/
+                    if (endCharIndex - beginIndex + 1 > 2)
+                    {
+                        memset(buf + beginIndex + 1, 0x00, (endCharIndex - beginIndex) - 1);
+                    }
+                    break;
+                case 1:
+                default:
+                    /*begin char*/
+                    tmp = 0xFF;
+                    buf[beginCharIndex] |= (tmp >> beginCharBitIndex);
+                    /*end char*/
+                    buf[endCharIndex] |= (tmp << (8 - endCharBitIndex));
+
+                    /*other char*/
+                    if (endCharIndex - beginIndex + 1 > 2)
+                    {
+                        memset(buf + beginIndex + 1, 0xFF, (endCharIndex - beginIndex) - 1);
+                    }
+                }
+            }
+        }
+
+        /**
+        * @brief                    generate block index head by index field
+        *
+        * @param blockIndex         blokc index
+        * @param lenOfBlockIndex    length of block index
+        */
+        void generateIndexHead(FILE_STORAGE_UNSIGNED_CHAR * blockIndex, FILE_STORAGE_UNSIGNED_INT lenOfBlockIndex)
+        {
+
+            FILE_STORAGE_UNSIGNED_INT maxSerialFreeBlockNum = 0;
+            FILE_STORAGE_UNSIGNED_INT serialFreeBlockNum = 0;
+            FILE_STORAGE_UNSIGNED_INT maxBitIndex = 0;
+            FILE_STORAGE_UNSIGNED_CHAR ch;
+            FILE_STORAGE_UNSIGNED_CHAR tmp;
+            FILE_STORAGE_UNSIGNED_CHAR * indexBuf;
+
+            BlockIndexFieldHead_t * blockIndexFieldHead = (BlockIndexFieldHead_t)blockIndex;
+
+            /*skip head*/
+            indexBuf = blockIndex + sizeof(BlockIndexFieldHead_t); 
+
+            tmp = 0x80;
+
+            for (FILE_STORAGE_UNSIGNED_INT iLoop = 0; iLoop < m_FileInfo.pageDataSize / m_FileInfo.blockSize / 8;iLoop++)
+            {
+                ch = indexBuf[iLoop];
+                for (int bitLoop = 0; bitLoop < 8; bitLoop++)
+                {
+                    if ((ch & (tmp >> bitLoop)) != 0x00 )
+                    {
+                        if (serialFreeBlockNum > maxSerialFreeBlockNum)
+                        {
+                            /*found bigger serial free block*/
+                            maxBitIndex = iLoop * 8 + bitLoop - serialFreeBlockNum;
+                            maxSerialFreeBlockNum = serialFreeBlockNum;
+                        }
+                        serialFreeBlockNum = 0;
+                    }
+                    else
+                    {
+                        serialFreeBlockNum++;
+                    }
+                }
+            }
+
+            /*end check*/
+            if (serialFreeBlockNum > maxSerialFreeBlockNum)
+            {
+                /*found bigger serial free block*/
+                maxBitIndex = m_FileInfo.pageDataSize / m_FileInfo.blockSize  - serialFreeBlockNum;
+                maxSerialFreeBlockNum = serialFreeBlockNum;
+            }
+
+            /*translate to page index and size*/
+            blockIndexFieldHead->maxSerialBlockIndex = m_FileInfo.blockSize * maxBitIndex + sizeof(BlockIndexFieldHead_t);
+            blockIndexFieldHead->maxSerialBlockSize = maxSerialFreeBlockNum * m_FileInfo.blockSize;
         }
 
     private:
