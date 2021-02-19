@@ -17,64 +17,66 @@
 6、size     查询一块已分配文件空间的大小，基于块标识
 
 ## 实现原理
-连续块 ：  BlockInfo + Data | BlockInfo + Data | ....
-读取时会将BlokcInfo加载至内存中，用于块的合并、检索等操作
-（后续会使用bitMap进行文件块索引，移除内存，提升加载速度）
-
+    文件按固定长度被分割，块为管理的最小粒度，如1024 或 4096 等，由连续块组成页
+页通过页索引维护块信息，页所以一个或者多个块，每个块占用4字节索引信息，用于标识
+块状态，目前块索引信息为引用计数与块剩余可用。
+    文件开头使用固定头，占用一个或多个块，用于记录文件的基础信息，如块的大小，页
+索引占用块数量，以及校验信息。
 
 ### 文件格式
+    | block | block | block | block | block | block | ... |
 
-| Verify Info | File Info | Page | Page | .....
-                         /         \
-                     / Page structure \
-| Block Index | Block | Block | Block | Block | .... 
+    | FileHead (1 or more block) | page (1 or more block) | page (1 or more block) | ... |
+                                 /                         \
+                                /          page  info       \
+                               /                             \
+    | page index (1 or more block) | Data ( 1 block) | Data ( 1 block) | ... |
+
+    
+    每个Data存在n字节的所有信息，放置于 page index区域中，若page index 占用M个Block 则 page block数据量为 ( m * blockSize) / n + m
+
+    目前 M 固定为 1 （功能暂时不打算实现）
 
 ### 文件格式说明
 
-#### Verify Info
-    文件校验头，用于校验是否为FileStorage文件，目前为固定字符校验，大小为 16 byte
+#### FileHead
+    verifyInfo:                 用于判断是否为 存储文件，目前为固定字符串
+    blockSize:                  块的大小
+    blockNumForEachPage:        每个页占用块的数量（通过 blockSize 计算）
+    pageNum:                    页的数量
+    pageSize:                   页的大小
 
-#### File Info
-    文件信息：维护 当前文件 Block 数量，Block 的大小等文件整体信息，结构体
 
-#### Page
-    存储块：大小固定的存储块，头为定长的块索引区，其余部分数据区，索引用于表示Page状态
+#### Page 
+##### Page Index 
+    为 IndexNode 的数组, 说明如下：
+    referenceIndex:             块引用计数
+    leftLen:                    块剩余可用大小
 
-#### Block Index
-    Block 存储块开头分配空间，大小为  Block Size * Page Num / 8 / Block Size，即使用 1 bit 标识Block状态
-    0 : Page 空闲
-    1 : Page 占用
+    因此 页包含的块数量为 1 * blockSize / sizeof(IndexNode), IndexNode 数组的下标与Data对应。
 
-#### Block
-    最小分配颗粒度，仅分配一个或多个连续Block
+##### Data
+    数据存储区：每个数据存储区域最大size为blockSize，IndexNode为数据存储块的索引内容，索引内容存储
+于PageIndex数组中，每个分配数据包含固定头DataNode，用于标识数据区域长度，以及下一个数据块开始索引
+    (当存储数据大于 blockSize 时，会存储于多个Data中，使用DataNode关联)
 
 ### 策略说明
 
 #### 存储句柄
-    通过存储分配接口，分配成功后返回用户，用户可以使用该句柄对分配块进行 读、写、释放操作
-    typedef strcut _FileStorageHandle
-    {
-        unsigned long long index;  //文件偏移量
-        unsigned int len; // 分配到的空间大小
-    } FileStorageHandle;
-    
+    文件中索引，指向DataNode，通过DataNode读取数据
+   
 #### 缓存管理
 
 ##### 快速分配器 
-    第一打开存储文件，通过解析 Block Index 生成 快速分配器
-    std::vector <std::list <BlockInfo>> 
-
-    数组 index : 链表中存储块 最大可分配的块 至少为  2 ^ (index + a) , 至多为  2 ^ (index + 1 + a)
-    
-    （需要分配空间为 59 则将 59 转为 index； 若 a = 2;  index = 4 时 Block至少可以分配 64 字节， 因此在 index >= 4 中找到一个Block 通过解析索引 将空间分配，并从新计算 至少可分配，并移到对应数组的链表中）
-    
-    缓存分配占用内存与空闲块数量直接相关，若不使用快速分配，则通过遍历Block Index获取可分配块
-
+    缓存索引信息，创建缓存MAP，键值分别为 leftLen 与 BlockIndex, 指向同一资源；通过leftLen Map进行数据分配
+    若不创建快速分配器，则每次读取PageIndex完成资源分配工作
 #### 分配策略
-    1. 不足 Block Size, 则分配一个 Block
-    2. 其余情况通过快速分配器 查找合适；若不使用快速分配器 则遍历 Block Index； 找到合适大小的空间进行分配；若无合适空间分配 则重新申请 Block
+    若分配数据不足 blockSize ： 查找是否存在存在足够空间的Data区域，存在则分配，不存在则从新开一页；对应的Data
+索引维护剩余长度，以及引用计数
+    若分配数据长度超过 blockSize ：将数据存储于多个block中，len % blockSize 按 分配数据不足blockSize存储，Data索引维护剩余长度以及引用计数，DataNode 维护多个数据区域（该情况一定为多个完整block + 一个不部分使用的block，以提供数据读取效率）
 
-#### 释放策略
-    1. 通过解析 FileStorageHandle 换算到 Page 对应的Block Index，维护Block Index；若使用快速分配器则将检查前后是否为空闲块，并进行维护，通过对前后空闲块Size的解析 在对用数组中，找到 Block 并调整长度，调整至合适的地方。
+#### 回收策略
+    使用存储句柄进行数据释放，针对数据长度是否超过blockSize进行维护（多个块与1个块），仅维护引用计数，当且仅当引用计数为 0 时，将leftLen修改为blockSize
 
-
+#### 管理
+    对数据仅完成block全部释放后，才可将回收资源再次用于分配。
