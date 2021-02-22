@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "FileStorage.hpp"
+#include "FileStorage_3.hpp"
 #define FileHashMapVerifyInfo "FileHashMap"
 
 namespace LYW_CODE
@@ -164,7 +164,7 @@ namespace LYW_CODE
                 if (keyData->len == lenOfKey && memcmp(keyData->data, key, lenOfKey) == 0)
                 {
                     /*free value*/
-                    m_FileStorage.Free(dataNode.value);
+                    m_FileStorage.free(dataNode.value);
 
                     /*update value*/
                     dataNode.value = m_FileStorage.allocate(valueDataSize);
@@ -217,7 +217,8 @@ namespace LYW_CODE
             }
             
             m_MapInfo.size++;
-            m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+            //m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+            m_FileStorage.write(m_MapHandle, &m_MapInfo, sizeof(MapInfo_t));
             return  true;
         }
 
@@ -333,17 +334,17 @@ namespace LYW_CODE
                     {
                         preDataNode.nextBlock = crtDataNode.nextBlock;
                         m_FileStorage.write(preNodeHandle, &preDataNode, sizeof(DataNode_t));
-                        m_FileStorage.Free(crtDataNode.key);
-                        m_FileStorage.Free(crtDataNode.value);
-                        m_FileStorage.Free(crtNodeHandle);
+                        m_FileStorage.free(crtDataNode.key);
+                        m_FileStorage.free(crtDataNode.value);
+                        m_FileStorage.free(crtNodeHandle);
 
                     }
                     else
                     {
 
-                        m_FileStorage.Free(crtDataNode.key);
-                        m_FileStorage.Free(crtDataNode.value);
-                        m_FileStorage.Free(crtNodeHandle);
+                        m_FileStorage.free(crtDataNode.key);
+                        m_FileStorage.free(crtDataNode.value);
+                        m_FileStorage.free(crtNodeHandle);
                         m_Bucket[index] = crtDataNode.nextBlock;
                         m_FileStorage.write(m_MapInfo.bucket, m_Bucket, sizeof(FileStorageHandle) * m_MapInfo.bucketSize);
                     }
@@ -354,7 +355,8 @@ namespace LYW_CODE
                     }
 
                     m_MapInfo.size--;
-                    m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+                    //m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+                    m_FileStorage.write(m_MapHandle, &m_MapInfo, sizeof(MapInfo_t));
                     return true;
                 }
 
@@ -476,7 +478,14 @@ namespace LYW_CODE
         bool LoadMap()
         {
             memset(&m_MapInfo, 0x00, sizeof(MapInfo_t));
-            if (m_FileStorage.read(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo,sizeof(m_MapInfo)) > 0)
+            m_MapHandle = m_FileStorage.getUserHandle(0);
+            if (m_MapHandle == 0) 
+            {
+                return false;
+            }
+
+            //if (m_FileStorage.read(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo,sizeof(m_MapInfo)) > 0)
+            if (m_FileStorage.read(m_MapHandle, &m_MapInfo,sizeof(m_MapInfo)) > 0)
             {
                 /*check Map VerifyInfo*/
                 if (memcmp(m_MapInfo.verifyInfo, FileHashMapVerifyInfo, strlen(FileHashMapVerifyInfo)) == 0)
@@ -509,11 +518,16 @@ namespace LYW_CODE
             m_MapInfo.size = 0;
             
             /*allocate Map Info storage buffer , must be first block*/
-            if (m_FileStorage.allocate(sizeof(MapInfo_t)) != FIRSTFILESTORAGEBLOCKHANDLE)
-            {
-                m_FileStorage.clearFile();
-                return false;
-            }
+
+            m_MapHandle = m_FileStorage.allocate(sizeof(MapInfo_t));
+
+            m_FileStorage.setUserHandle(0, m_MapHandle);
+
+            //if (m_FileStorage.allocate(sizeof(MapInfo_t)) != FIRSTFILESTORAGEBLOCKHANDLE)
+            //{
+            //    m_FileStorage.clearFile();
+            //    return false;
+            //}
 
             /*allcote bucket storage buffer*/
             if ((m_MapInfo.bucket = m_FileStorage.allocate(sizeof(FileStorageHandle) * m_MapInfo.bucketSize)) <= 0)
@@ -525,7 +539,8 @@ namespace LYW_CODE
             m_FileStorage.fset(m_MapInfo.bucket, 0x00);
 
             /*write to storage buffer*/
-            m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+            //m_FileStorage.write(FIRSTFILESTORAGEBLOCKHANDLE, &m_MapInfo, sizeof(MapInfo_t));
+            m_FileStorage.write(m_MapHandle, &m_MapInfo, sizeof(MapInfo_t));
 
             /*cache bucket info*/
             m_Bucket = (FileStorageHandle *)::malloc(sizeof(FileStorageHandle) * m_MapInfo.bucketSize);
@@ -557,5 +572,7 @@ namespace LYW_CODE
         std::string m_MapName;
         MapInfo_t m_MapInfo;
         iterator m_Iterator;
+
+        FileStorageHandle m_MapHandle;
     };
 }

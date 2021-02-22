@@ -21,6 +21,7 @@ namespace LYW_CODE
     typedef struct _FixedHead
     {
         unsigned long long fileEndIndex;
+        unsigned long long userHandle[16];
     } FixedHead_t;
     
     /*data block include two part first : index info second : data*/
@@ -56,6 +57,42 @@ namespace LYW_CODE
                 m_Storage = NULL;
             }
         }
+
+        FileStorageHandle getUserHandle(unsigned int index)
+        {
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+            if (index >= sizeof(m_FixedHead.userHandle))
+            { 
+                return 0;
+            }
+
+            return m_FixedHead.userHandle[index];
+        }
+
+        bool setUserHandle(unsigned int index, unsigned long long handle)
+        {
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+            if (index >= sizeof(m_FixedHead.userHandle))
+            { 
+                return 0;
+            }
+
+            m_FixedHead.userHandle[index] = handle;
+
+            //writeToFile(0, &m_FixedHead, sizeof(FixedHead_t));
+
+            m_Storage->lseek(sizeof(VerifyInfo_t),SEEK_SET);
+            m_Storage->write((const void *)&m_FixedHead, sizeof(FixedHead_t));
+        }
+
         int read (FileStorageHandle handle, unsigned int pos, void * buf, unsigned long len)
         {
             std::map<FileStorageHandle,StorageBlock_t> :: iterator it;
@@ -341,7 +378,7 @@ namespace LYW_CODE
          * return   true            success
          *          false           failed
          */
-        bool Free(FileStorageHandle handle)
+        bool free(FileStorageHandle handle)
         {
             StorageBlock_t storageBlock;
             int ret = 0;
@@ -565,7 +602,7 @@ namespace LYW_CODE
                     m_UsedBlock[storageBlock.blockBeginIndex] = storageBlock;
                     if (storageBlock.blockState == WaitMergerBlock)
                     {
-                        Free(storageBlock.blockBeginIndex);
+                        free(storageBlock.blockBeginIndex);
                     }
                 }
                 return 1;
@@ -573,6 +610,8 @@ namespace LYW_CODE
             else
             {
                 /*unkown file format , rebuild storage file*/
+
+                memset(&m_FixedHead,0x00,sizeof(FixedHead_t));
                 m_FixedHead.fileEndIndex = sizeof(VerifyInfo_t) + sizeof(FixedHead_t);
                 memcpy(verifyInfo.buf, FileStorageCheckInfo, strlen(FileStorageCheckInfo));
 

@@ -73,7 +73,7 @@ namespace LYW_CODE
              * @return -1 failed
              *         >0 file size
              */
-            virtual int size() = 0;
+            virtual off_t size() = 0;
 
             
             /**
@@ -239,7 +239,7 @@ namespace LYW_CODE
              * @return -1 failed
              *         >0 file size
              */
-            int size()
+            off_t size()
             {
                 if (m_handle > 0)
                 {

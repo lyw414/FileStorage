@@ -3,9 +3,9 @@
 #include <string.h>
 
 
-int total = 100000;
+int total = 10000;
 
-int add( LYW_CODE::FileHashMap & m_map)
+int add( )
 {
     char buf[1024];
     char key[64];
@@ -15,6 +15,7 @@ int add( LYW_CODE::FileHashMap & m_map)
 
     memset (buf, 0x31, sizeof(buf));
     gettimeofday(&begin, NULL);
+    LYW_CODE::FileHashMap m_map("HashMapFile");
     for (int iLoop = 0; iLoop < total; iLoop++)
     {
         memset(key, 0x00, sizeof(key));
@@ -27,7 +28,7 @@ int add( LYW_CODE::FileHashMap & m_map)
 }
 
 
-int find( LYW_CODE::FileHashMap & m_map)
+int find( )
 {
     char buf[1024];
     char key[64];
@@ -37,6 +38,8 @@ int find( LYW_CODE::FileHashMap & m_map)
 
     memset (buf, 0x31, sizeof(buf));
     gettimeofday(&begin, NULL);
+
+    LYW_CODE::FileHashMap m_map("HashMapFile");
     for (int iLoop = 0; iLoop < total; iLoop++)
     {
         memset(key, 0x00, sizeof(key));
@@ -49,7 +52,7 @@ int find( LYW_CODE::FileHashMap & m_map)
 
 }
 
-int del( LYW_CODE::FileHashMap & m_map)
+int del( )
 {
     char buf[1024];
     char key[64];
@@ -59,6 +62,8 @@ int del( LYW_CODE::FileHashMap & m_map)
 
     memset (buf, 0x31, sizeof(buf));
     gettimeofday(&begin, NULL);
+
+    LYW_CODE::FileHashMap m_map("HashMapFile");
     for (int iLoop = 0; iLoop < total; iLoop++)
     {
         memset(key, 0x00, sizeof(key));
@@ -74,13 +79,27 @@ int del( LYW_CODE::FileHashMap & m_map)
 
 int main(int argc, char ** argv)
 {
-    LYW_CODE::FileHashMap m_map("HashMapFile");
-    int t = 0;
-    t = add (m_map);
-    printf("add TPS[%d]\n", t);
-    //t = find (m_map);
-    //printf("add TPS[%d]\n", t);
-    //t = del (m_map);
-    //printf("add TPS[%d]\n", t);
 
+
+    int t = 0;
+    int tag = atoi(argv[1]);
+    total = atoi(argv[2]);
+    
+    switch(tag)
+    {
+    case 0:
+        t = add ();
+        printf("add TPS[%d]\n", t);
+        break;
+
+    case 1:
+        t = find ();
+        printf("add TPS[%d]\n", t);
+        break;
+
+    case 2:
+        t = del ();
+        printf("add TPS[%d]\n", t);
+        break;
+    }
 }

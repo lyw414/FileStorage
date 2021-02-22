@@ -9,7 +9,8 @@ int main(int argc, char ** argv)
     {
         return 0;
     }
-    char buf2[100] = {0};
+    char buf2[8192] = {0};
+    memset(buf2,0x32,8192);
     unsigned long long handle = 0;
     int tag = atoi(argv[1]);
     int size = 0; 
@@ -18,22 +19,24 @@ int main(int argc, char ** argv)
     case 0:
       size = atoi(argv[2]);
       handle = storage.allocate(size);
-      sprintf(buf2,"%lld", handle);
-      storage.write(handle, buf2, strlen(buf2));
+      //sprintf(buf2,"%lld", handle);
+      storage.write(handle, buf2, size );
       printf("allocate %lld\n", handle);
       break;
     case 1:
       memset(buf2,0x00, sizeof(buf2));
       handle = atoi(argv[2]);
-      storage.read(handle, buf2, 64);
+      storage.read(handle,buf2, 1024);
       printf("read %s\n", buf2);
-        break;
+      break;
     case 2:
       handle = atoi(argv[2]);
-      storage.Free(handle);
+      storage.free(handle);
       printf("free %lld\n", handle) ;
-        break;
+      break;
     }
+
+    //storage.showBlockInfo();
 
     return 0;
 }
