@@ -13,7 +13,7 @@
 #endif
 
 #define FILE_STORAGE_VERIFY_INFO "****LYW STORAGE****"
-#define FILE_STORAGE_BLOCK_SIZE 4096
+#define FILE_STORAGE_BLOCK_SIZE 1024 
 
 
 namespace LYW_CODE
@@ -40,7 +40,7 @@ namespace LYW_CODE
             FILE_STORAGE_UNSIGNED_LONG  preBlock;
             FILE_STORAGE_UNSIGNED_LONG  nextBlock;
             FILE_STORAGE_UNSIGNED_INT leftLen;
-            FILE_STORAGE_UNSIGNED_INT referenceNum;
+            FILE_STORAGE_INT referenceNum;
         } BlockHead_t;
 
 
@@ -184,15 +184,16 @@ namespace LYW_CODE
                     blockHead.nextBlock = allocateBlock();
                     writeToFile(currentBlockIndex, &blockHead, sizeof(BlockHead_t));
 
-                    /*set fixed head*/
-                    currentBlockIndex = m_FixedHead.usedBlockEnd = blockHead.nextBlock;
-                    isWriteFixedHead = true;
-                    
                     /*set next block head info*/
                     blockHead.leftLen = m_FixedHead.blockUserSize;
                     blockHead.referenceNum = 0;;
                     blockHead.nextBlock = 0;
                     blockHead.preBlock = currentBlockIndex;
+
+                    /*set fixed head*/
+                    currentBlockIndex = m_FixedHead.usedBlockEnd = blockHead.nextBlock;
+                    isWriteFixedHead = true;
+ 
                 }
                 else
                 {
@@ -230,6 +231,13 @@ namespace LYW_CODE
             FILE_STORAGE_UNSIGNED_LONG leftLen;
             FILE_STORAGE_UNSIGNED_LONG writeLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
+
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+
 
             /*read dataNode*/
             if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
@@ -293,6 +301,13 @@ namespace LYW_CODE
             FILE_STORAGE_UNSIGNED_LONG readLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
 
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+
+
             /*read dataNode*/
             if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
             {
@@ -346,6 +361,11 @@ namespace LYW_CODE
             FILE_STORAGE_UNSIGNED_LONG leftLen;
             FILE_STORAGE_UNSIGNED_LONG readLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
+
+            if (!IsInit())
+            {
+                return 0;
+            }
 
             /*read dataNode*/
             if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
@@ -453,6 +473,8 @@ namespace LYW_CODE
 
             BlockHead_t freeBlockHead;
 
+            BlockHead_t usedBlockHead;
+
             FILE_STORAGE_UNSIGNED_LONG beginIndex = m_FixedHead.blockSize * (index / m_FixedHead.blockSize);
 
             if (pBlockHead == NULL) 
@@ -466,6 +488,23 @@ namespace LYW_CODE
 
             if (blockHead.referenceNum - 1 <= 0)
             {
+
+                if (beginIndex == m_FixedHead.usedBlockEnd)
+                {
+                    m_FixedHead.usedBlockEnd = blockHead.preBlock;
+                }
+                else
+                {
+                    if (blockHead.nextBlock != 0)
+                    {
+                        readFromFile(blockHead.nextBlock, &usedBlockHead, sizeof(BlockHead_t));
+                        usedBlockHead.preBlock = blockHead.preBlock;
+
+                        writeToFile(blockHead.nextBlock, &usedBlockHead, sizeof(BlockHead_t));
+                    }
+                    
+                }
+
                 if (m_FixedHead.freeBlockBegin == 0)
                 {
                     m_FixedHead.freeBlockBegin = beginIndex;
@@ -650,6 +689,11 @@ namespace LYW_CODE
             if ((fileLen = m_Storage->size()) > 0) 
             {
                 m_LastBlock = fileLen / m_FixedHead.blockSize;
+
+                if (fileLen % m_FixedHead.blockSize == 0)
+                {
+                    m_LastBlock--;
+                }
             }
 
 
