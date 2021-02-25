@@ -20,13 +20,13 @@ int main(int argc, char ** argv)
       size = atoi(argv[2]);
       handle = storage.allocate(size);
       //sprintf(buf2,"%lld", handle);
-      storage.write(handle, buf2, size );
+      storage.write(handle,8, buf2, size - 8);
       printf("allocate %lld\n", handle);
       break;
     case 1:
       memset(buf2,0x00, sizeof(buf2));
       handle = atoi(argv[2]);
-      storage.read(handle,buf2, 1024);
+      storage.read(handle,8,buf2, 1024);
       printf("read %s\n", buf2);
       break;
     case 2:

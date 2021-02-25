@@ -13,7 +13,7 @@
 #endif
 
 #define FILE_STORAGE_VERIFY_INFO "****LYW STORAGE****"
-#define FILE_STORAGE_BLOCK_SIZE 1024 
+#define FILE_STORAGE_BLOCK_SIZE 4096
 
 
 namespace LYW_CODE
@@ -114,9 +114,9 @@ namespace LYW_CODE
 
             FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
 
-            BlockHead_t blockHead;
+            BlockHead_t blockHead = {0};
 
-            DataNode_t  dataNode;
+            DataNode_t  dataNode = {0};
 
             bool isWriteFixedHead = false;
 
@@ -182,6 +182,11 @@ namespace LYW_CODE
                     blockHead.leftLen = 0;
                     blockHead.referenceNum++;
                     blockHead.nextBlock = allocateBlock();
+
+                    /*set fixed head*/
+                    m_FixedHead.usedBlockEnd = blockHead.nextBlock;
+                    isWriteFixedHead = true;
+
                     writeToFile(currentBlockIndex, &blockHead, sizeof(BlockHead_t));
 
                     /*set next block head info*/
@@ -190,10 +195,7 @@ namespace LYW_CODE
                     blockHead.nextBlock = 0;
                     blockHead.preBlock = currentBlockIndex;
 
-                    /*set fixed head*/
-                    currentBlockIndex = m_FixedHead.usedBlockEnd = blockHead.nextBlock;
-                    isWriteFixedHead = true;
- 
+                    currentBlockIndex = m_FixedHead.usedBlockEnd;
                 }
                 else
                 {
@@ -210,6 +212,7 @@ namespace LYW_CODE
 
             if (!writeDataNode(handle, &dataNode))
             {
+                printf("%d allocate failed\n", __LINE__);
                 return 0;
             }
             
@@ -225,10 +228,10 @@ namespace LYW_CODE
 
         int write(FileStorageHandle handle, void * buf, FILE_STORAGE_UNSIGNED_LONG lenOfBuf)
         {
-            DataNode_t dataNode;
-            BlockHead_t blockHead;
-            FILE_STORAGE_UNSIGNED_LONG blockLeftLen;
-            FILE_STORAGE_UNSIGNED_LONG leftLen;
+            DataNode_t dataNode = {0};
+            BlockHead_t blockHead = {0};
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
             FILE_STORAGE_UNSIGNED_LONG writeLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
 
@@ -242,6 +245,8 @@ namespace LYW_CODE
             /*read dataNode*/
             if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
             {
+
+                printf("%d write failed\n", __LINE__);
                 return 0;
             }
 
@@ -277,6 +282,7 @@ namespace LYW_CODE
                     beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
                     if (blockHead.nextBlock == 0 && leftLen > 0)
                     {
+                        printf("%d write failed\n", __LINE__);
                         return 0;
                     }
                 }
@@ -288,16 +294,156 @@ namespace LYW_CODE
 
         int write(FileStorageHandle handle, FILE_STORAGE_UNSIGNED_LONG pos, void * buf, FILE_STORAGE_UNSIGNED_LONG lenOfBuf)
         {
-            return 0;
+            DataNode_t dataNode = {0};
+            BlockHead_t blockHead = {0};
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG posLeftLen = pos;
+            FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG writeLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
+
+
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+            /*read dataNode*/
+            if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
+            {
+                return 0;
+            }
+
+            /*write data len*/
+            writeLen = 0;
+            if (dataNode.len - pos < lenOfBuf)
+            {
+                leftLen = dataNode.len - pos;
+            }
+            else
+            {
+                leftLen = lenOfBuf;
+            }
+
+            /*write data*/
+            while(leftLen > 0)
+            {
+                blockLeftLen = m_FixedHead.blockSize - beginIndex % m_FixedHead.blockSize;
+
+                if (posLeftLen >= blockLeftLen) 
+                {
+                    posLeftLen -= blockLeftLen;
+                }
+                else
+                {
+
+                    if (leftLen <= blockLeftLen - posLeftLen)
+                    {
+                        writeToFile(beginIndex + posLeftLen, (unsigned char *)buf + writeLen, leftLen);
+                        writeLen += leftLen;
+                        leftLen = 0;
+                        return writeLen;
+                    }
+                    else
+                    {
+                        writeToFile(beginIndex + posLeftLen, (unsigned char *)buf + writeLen, blockLeftLen - posLeftLen);
+                        writeLen += (blockLeftLen - posLeftLen);
+                        leftLen -= (blockLeftLen - posLeftLen);
+
+                        posLeftLen = 0;
+
+                        beginIndex = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+
+                        readFromFile(beginIndex, &blockHead, sizeof(BlockHead_t));
+                        beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                        if (blockHead.nextBlock == 0 && leftLen > 0)
+                        {
+                            return 0;
+                        }
+                    }
+                }
+            }
+            return writeLen;
         }
 
 
+        int read (FileStorageHandle handle, FILE_STORAGE_UNSIGNED_LONG pos, void * buf,FILE_STORAGE_UNSIGNED_LONG len)
+        {
+            DataNode_t dataNode = {0};
+            BlockHead_t blockHead = {0};
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG posLeftLen = pos;
+            FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG readLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
+
+            if (!IsInit())
+            {
+                return 0;
+            }
+
+
+
+            /*read dataNode*/
+            if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
+            {
+                return 0;
+            }
+
+            /*read data len*/
+            readLen = 0;
+            if (dataNode.len - pos < len)
+            {
+                leftLen = dataNode.len - pos;
+            }
+            else
+            {
+                leftLen = len;
+            }
+
+            /*read data*/
+            while(leftLen > 0)
+            {
+                blockLeftLen = m_FixedHead.blockSize - beginIndex % m_FixedHead.blockSize;
+                if (posLeftLen >= blockLeftLen)
+                {
+                    posLeftLen -= blockLeftLen;
+                }
+                else
+                {
+                    if (leftLen <= blockLeftLen - posLeftLen)
+                    {
+                        readFromFile(beginIndex + posLeftLen, (unsigned char *)buf + readLen, leftLen);
+                        readLen += leftLen;
+                        leftLen = 0;
+                        return readLen;
+                    }
+                    else
+                    {
+                        readFromFile(beginIndex + posLeftLen, (unsigned char *)buf + readLen, blockLeftLen);
+                        readLen += (blockLeftLen - posLeftLen);
+                        leftLen -= (blockLeftLen - posLeftLen);
+
+                        posLeftLen = 0;
+                        beginIndex = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+                        readFromFile(beginIndex, &blockHead, sizeof(BlockHead_t));
+                        beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                        if (blockHead.nextBlock == 0 && leftLen > 0)
+                        {
+                            return 0;
+                        }
+                    }
+                }
+            }
+            return readLen;
+        }
+
         int read (FileStorageHandle handle, void * buf, FILE_STORAGE_UNSIGNED_LONG len)
         {
-            DataNode_t dataNode;
-            BlockHead_t blockHead;
-            FILE_STORAGE_UNSIGNED_LONG blockLeftLen;
-            FILE_STORAGE_UNSIGNED_LONG leftLen;
+            DataNode_t dataNode = {0};
+            BlockHead_t blockHead = {0};
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
             FILE_STORAGE_UNSIGNED_LONG readLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
 
@@ -355,22 +501,22 @@ namespace LYW_CODE
 
         bool free(FileStorageHandle handle)
         {
-            DataNode_t dataNode;
-            BlockHead_t blockHead;
-            FILE_STORAGE_UNSIGNED_LONG blockLeftLen;
-            FILE_STORAGE_UNSIGNED_LONG leftLen;
+            DataNode_t dataNode = {0};
+            BlockHead_t blockHead = {0};
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG leftLen = 0;
             FILE_STORAGE_UNSIGNED_LONG readLen = 0;
             FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
 
             if (!IsInit())
             {
-                return 0;
+                return false;
             }
 
             /*read dataNode*/
             if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
             {
-                return 0;
+                return false;
             }
 
 
@@ -411,6 +557,81 @@ namespace LYW_CODE
             }
 
             return true;
+        }
+
+        FILE_STORAGE_UNSIGNED_LONG size(FileStorageHandle handle)
+        {
+            DataNode_t dataNode;
+
+            if (readDataNode(handle, &dataNode) == 0)
+            {
+                return 0;
+            }
+
+            return dataNode.len;
+        }
+
+        void fset(FileStorageHandle handle, unsigned char ch)
+        {
+            DataNode_t dataNode;
+            BlockHead_t blockHead;
+            FILE_STORAGE_UNSIGNED_LONG blockLeftLen;
+            FILE_STORAGE_UNSIGNED_LONG leftLen;
+            FILE_STORAGE_UNSIGNED_LONG writeLen = 0;
+            FILE_STORAGE_UNSIGNED_LONG beginIndex = handle;
+
+            if (!IsInit())
+            {
+                return ;
+            }
+
+            /*read dataNode*/
+            if ((beginIndex = readDataNode(handle, &dataNode)) == 0)
+            {
+                return ;
+            }
+
+            /*write data len*/
+            writeLen = 0;
+
+            leftLen = dataNode.len;
+
+            memset(m_Block,ch,m_FixedHead.blockSize);
+
+            /*write data*/
+            while(leftLen > 0)
+            {
+                blockLeftLen = m_FixedHead.blockSize - beginIndex % m_FixedHead.blockSize;
+                if (leftLen <= blockLeftLen)
+                {
+                    writeToFile(beginIndex, (unsigned char *)m_Block, leftLen);
+                    writeLen += leftLen;
+                    leftLen = 0;
+                    return ;
+                }
+                else
+                {
+                    writeToFile(beginIndex, (unsigned char *)m_Block, blockLeftLen);
+                    writeLen += blockLeftLen;
+                    leftLen -= blockLeftLen;
+                    beginIndex = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+                    readFromFile(beginIndex, &blockHead, sizeof(BlockHead_t));
+                    beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                    if (blockHead.nextBlock == 0 && leftLen > 0)
+                    {
+                        return ;
+                    }
+                }
+            }
+            return ;
+
+        }
+
+        void clearFile()
+        {
+            m_Storage->close();
+            m_Storage->open(m_FileName, 1);
+            m_Storage->close();
         }
 
     private:
@@ -559,6 +780,18 @@ namespace LYW_CODE
             {
                 readFromFile(beginIndex, dataNode, sizeof(DataNode_t));
                 endIndex =  beginIndex + sizeof(DataNode_t);
+                if (endIndex % m_FixedHead.blockSize == 0)
+                {
+                    tmp = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+                    readFromFile(tmp, &blockHead, sizeof(BlockHead_t));
+
+                    if (blockHead.nextBlock == 0)
+                    {
+                        return 0;
+                    }
+                    
+                    endIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                }
             }
             else
             {

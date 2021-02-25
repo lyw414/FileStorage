@@ -14,6 +14,7 @@ int add( )
     struct timeval end;
 
     memset (buf, 0x31, sizeof(buf));
+    buf[1023] = '\0';
     gettimeofday(&begin, NULL);
     LYW_CODE::FileHashMap m_map("HashMapFile");
     for (int iLoop = 0; iLoop < total; iLoop++)

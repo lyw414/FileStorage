@@ -7,6 +7,8 @@ int main(int argc, char ** argv)
     LYW_CODE::FileHashMap::iterator it;
 
     char buf[1024] = {0};
+    memset(buf,0x31,1024);
+    buf[1023] = 0x00;
     if (argc < 2)
     {
         return 0;
@@ -14,8 +16,10 @@ int main(int argc, char ** argv)
 
     if (strcmp(argv[1], "add") == 0)
     {
-        m_map.add(argv[2], strlen(argv[2]), (void *)argv[3], strlen(argv[3]));
-        printf("Add Key [%s] value [%s]\n", argv[2], argv[3]);
+        //m_map.add(argv[2], strlen(argv[2]), (void *)argv[3], strlen(argv[3]));
+
+        m_map.add(argv[2], strlen(argv[2]), (void *)buf, strlen(buf));
+        printf("Add Key [%s] value [%s]\n", argv[2], argv[2]);
     }
     else if (strcmp(argv[1], "find") == 0)
     {
