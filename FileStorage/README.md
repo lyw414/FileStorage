@@ -23,10 +23,11 @@
 
 ### 文件格式
 | FixedHead (block) | block | block | block | block | block | ... |
+
                                     /       \
                                    /         \
                                   /  block    \
-                              | Block Info | Data | 
+                             | Block Info | Data | 
 
     每个Block为双链表节点，节点信息存储于Block Info中，数据存储于Data区域中        
 
