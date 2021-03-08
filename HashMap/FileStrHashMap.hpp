@@ -513,7 +513,7 @@ namespace LYW_CODE
             
             /*Init Hash Map*/
             memcpy(m_MapInfo.verifyInfo, FileHashMapVerifyInfo, strlen(FileHashMapVerifyInfo));
-            m_MapInfo.bucketSize = 1024;
+            m_MapInfo.bucketSize = 1024000;
             m_MapInfo.bucket = 0;
             m_MapInfo.size = 0;
             

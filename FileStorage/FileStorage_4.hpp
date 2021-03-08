@@ -94,17 +94,18 @@ namespace LYW_CODE
         {
             if (!IsInit())
             {
-                return 0;
+                return false;
             }
 
             if (index >= sizeof(m_FixedHead.userHandle))
             { 
-                return 0;
+                return false;
             }
 
             m_FixedHead.userHandle[index] = handle;
 
             writeToFile(0, &m_FixedHead, sizeof(FixedHead_t));
+            return true;
         }
 
         FileStorageHandle allocate(FILE_STORAGE_UNSIGNED_INT size)

@@ -23,6 +23,8 @@ int main(int argc, char ** argv)
     }
     else if (strcmp(argv[1], "find") == 0)
     {
+
+    memset(buf,0x00,1024);
         m_map.find(argv[2],strlen(argv[2]), buf, sizeof(buf));
         printf("Find Key [%s] value [%s]\n", argv[2], buf);
     }
