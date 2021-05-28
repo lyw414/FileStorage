@@ -13,7 +13,7 @@
 #endif
 
 #define FILE_STORAGE_VERIFY_INFO "****LYW STORAGE****"
-#define FILE_STORAGE_BLOCK_SIZE 4096
+#define FILE_STORAGE_BLOCK_SIZE 1024
 
 
 namespace LYW_CODE
@@ -498,6 +498,12 @@ namespace LYW_CODE
                 }
             }
             return readLen;
+        }
+
+
+        bool copy( FileStorageHandle dstHandle, unsigned long dstPos, FileStorageHandle srcHandle, unsigned long srcPos, unsigned long cpyLen)
+        {
+            return false;
         }
 
         bool free(FileStorageHandle handle)
