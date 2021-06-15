@@ -265,8 +265,15 @@ namespace LYW_CODE
                 if (keyData->len == lenOfKey && memcmp(key,keyData->data, lenOfKey) == 0)
                 {
                     m_FileStorage.read(dataNode.value, 0, &valueData, sizeof(valueData.len));
-                    tmpLen = valueData.len < sizeOfValue ? valueData.len : sizeOfValue;
-                    m_FileStorage.read(dataNode.value, sizeof(valueData.len), value, tmpLen);
+                    if (value != NULL)
+                    {
+                        tmpLen = valueData.len < sizeOfValue ? valueData.len : sizeOfValue;
+                        m_FileStorage.read(dataNode.value, sizeof(valueData.len), value, tmpLen);
+                    }
+                    else
+                    {
+                        tmpLen = valueData.len;
+                    }
                     if (keyData != NULL)
                     {
                         ::free(keyData);
@@ -513,7 +520,7 @@ namespace LYW_CODE
             
             /*Init Hash Map*/
             memcpy(m_MapInfo.verifyInfo, FileHashMapVerifyInfo, strlen(FileHashMapVerifyInfo));
-            m_MapInfo.bucketSize = 1024000;
+            m_MapInfo.bucketSize = 1024;
             m_MapInfo.bucket = 0;
             m_MapInfo.size = 0;
             

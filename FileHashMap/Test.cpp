@@ -2,7 +2,7 @@
 #include <string.h> 
 int main(int argc, char ** argv)
 {
-    LYW_CODE::FileHashMap m_map("HashMapFile");
+    LYW_CODE::FileHashMap m_map("ssss");
 
     LYW_CODE::FileHashMap::iterator it;
 
@@ -43,6 +43,12 @@ int main(int argc, char ** argv)
         {
             printf("Find Key [%s] value [%s]\n", std::string((char *)it.key,it.keyLen).c_str() , std::string((char *)it.value, it.valueLen).c_str());
         }
+    }
+    else if (strcmp(argv[1], "findSize") == 0)
+    {
+        int res = m_map.find(argv[2],strlen(argv[2]), NULL, 0);
+        printf("Find Key [%s] size [%d]\n", argv[2], res);
+
     }
     return 0;
 }

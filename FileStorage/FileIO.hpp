@@ -86,6 +86,17 @@ namespace LYW_CODE
              */
             virtual int ftruncate(off_t len) = 0;
 
+
+            /**
+             * @brief  sync to file 
+             *
+             * @param len offset len
+             *
+             * @return    0   success
+             *          < 0   failed
+             */
+            virtual int sync() = 0;
+
             virtual ~BaseFileIO() {};
     };
 
@@ -102,6 +113,7 @@ namespace LYW_CODE
             {
                 if (m_handle > 0)
                 {
+                    sync();
                     ::close(m_handle);
                     m_handle = -1;
                 }
@@ -265,6 +277,26 @@ namespace LYW_CODE
                 if (m_handle > 0)
                 {
                     return ::ftruncate(m_handle, len);
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+
+            /**
+             * @brief       truncate file
+             *
+             * @param len   offset len
+             *
+             * @return      0   success
+             *            < 0   failed
+             */
+            int sync()
+            {
+                if (m_handle > 0)
+                {
+                    return ::fsync(m_handle);
                 }
                 else
                 {

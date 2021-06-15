@@ -916,6 +916,7 @@ namespace LYW_CODE
             }
             else
             {
+                printf("DDDDDDDDDDDDDDDDDDDD\n");
                 createNewStorageFile();
             }
             return 0;
