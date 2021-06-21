@@ -334,6 +334,15 @@ namespace LYW_CODE
                 if (posLeftLen >= blockLeftLen) 
                 {
                     posLeftLen -= blockLeftLen;
+
+                    beginIndex = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+                    readFromFile(beginIndex, &blockHead, sizeof(BlockHead_t));
+                    beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                    if (blockHead.nextBlock == 0 && leftLen > 0)
+                    {
+                        return 0;
+                    }
+
                 }
                 else
                 {
@@ -409,6 +418,14 @@ namespace LYW_CODE
                 if (posLeftLen >= blockLeftLen)
                 {
                     posLeftLen -= blockLeftLen;
+                    beginIndex = m_FixedHead.blockSize * (beginIndex / m_FixedHead.blockSize);
+                    readFromFile(beginIndex, &blockHead, sizeof(BlockHead_t));
+                    beginIndex = blockHead.nextBlock + sizeof(BlockHead_t);
+                    if (blockHead.nextBlock == 0 && leftLen > 0)
+                    {
+                        return 0;
+                    }
+
                 }
                 else
                 {
